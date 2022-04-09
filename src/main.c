@@ -51,6 +51,7 @@ static uint16_t ble_svc_gatt_read_val_handle,ble_spp_svc_gatt_read_val_handle;
 /* 16 Bit SPP Service Characteristic UUID */
 #define BLE_SVC_SPP_CHR_UUID16                              0xABF1
 
+int callcount = 0;
 // Semaphore
 
 volatile SemaphoreHandle_t xGuiSemaphore;
@@ -356,67 +357,7 @@ void ble_spp_client_host_task(void *param)
 
     nimble_port_freertos_deinit();
 }
-void ble_client_uart_task(void *pvParameters)
-{
-    char myarray[4] = "fesk";
-	ESP_LOGI(tag,"BLE client UART task started\n");
-	int rc;
-	uart_event_t event;
-        for (;;) {
-            //Waiting for UART event.
-            if (xQueueReceive(spp_common_uart_queue, (void * )&event, (TickType_t)portMAX_DELAY)) {
-             switch (event.type) {
-             //Event of UART receving data
-             case UART_DATA:
-                if (event.size && (is_connect == true)) {
 
-                     /* Writing characteristics */
-		     uint8_t * temp = NULL;
-                     temp = (uint8_t *)malloc(sizeof(uint8_t)*event.size);
-                     if(temp == NULL){
-                         ESP_LOGE(tag, "malloc failed,%s L#%d\n", __func__, __LINE__);
-                         break;
-                     }
-                     memset(temp, 0x0, event.size);
-                     uart_read_bytes(UART_NUM_0,temp,event.size,portMAX_DELAY);
-		     rc = ble_gattc_write_flat(connection_handle, attribute_handle, &myarray, 4,NULL, NULL);
-		     if(rc == 0){
-		     	ESP_LOGI(tag,"Write in uart task success!");
-		     }
-		     else{
-		     	ESP_LOGI(tag,"Error in writing characteristic");
-		     }
-		     free(temp);
-		 }
-                 break;
-             default:
-                 break;
-             }
-         }
-     }
-     vTaskDelete(NULL);
-
-}
-static void ble_spp_uart_init(void)
-{
-     uart_config_t uart_config = {
-         .baud_rate = 115200,
-         .data_bits = UART_DATA_8_BITS,
-         .parity = UART_PARITY_DISABLE,
-         .stop_bits = UART_STOP_BITS_1,
-         .flow_ctrl = UART_HW_FLOWCTRL_RTS,
-         .rx_flow_ctrl_thresh = 122,
-         .source_clk = UART_SCLK_APB,
-     };
-
-     //Install UART driver, and get the queue.
-     uart_driver_install(UART_NUM_0, 4096, 8192, 10, &spp_common_uart_queue, 0);
-     //Set UART parameters
-     uart_param_config(UART_NUM_0, &uart_config);
-     //Set UART pins
-     uart_set_pin(UART_NUM_0, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-     xTaskCreatePinnedToCore(ble_client_uart_task, "uTask", 2048, (void*)UART_NUM_0, 8, NULL,1);
-}
 /* Callback function for custom service */
 static int  ble_svc_gatt_handler(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
@@ -426,8 +367,9 @@ static int  ble_svc_gatt_handler(uint16_t conn_handle, uint16_t attr_handle,stru
       break;
 
       case BLE_GATT_ACCESS_OP_WRITE_CHR:
-	 ESP_LOGI(tag,"Data received in write event,conn_handle = %x,attr_handle = %x",conn_handle,attr_handle);
-     ESP_LOGI(tag,"Some text maybe: %i: %s iiii", ctxt->om->om_len, ctxt->om->om_data);
+	 //ESP_LOGI(tag,"Data received in write event,conn_handle = %x,attr_handle = %x",conn_handle,attr_handle);
+     ESP_LOGI(tag,"Payload length: %i, call count %i", ctxt->om->om_len, callcount++);
+     //ESP_LOGI(tag,"Some text maybe: %i: %s iiii", ctxt->om->om_len, ctxt->om->om_data);
      
       break;
 
@@ -545,7 +487,10 @@ app_main(void)
     xGuiSemaphore = xSemaphoreCreateMutex();
     /* Initialize UART driver and start uart task */
     //ble_spp_uart_init();
-    xTaskCreatePinnedToCore(ble_client_my_task, "myTask", 2048, NULL, 8, NULL,0);
+    // Special stuff
+    //ble_att_set_preferred_mtu(1024);
+
+    xTaskCreatePinnedToCore(ble_client_my_task, "myTask", 8192, NULL, 8, NULL,0);
 
 
     /* Configure the host. */
