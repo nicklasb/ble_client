@@ -2,5 +2,6 @@
     "files.associations": {
         "*.ipp": "c",
         "cstring": "c"
-    }
+    },
+    "idf.adapterTargetName": "esp32"
 }
